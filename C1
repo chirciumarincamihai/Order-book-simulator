@@ -1,0 +1,13 @@
+#include <iostream>
+#include <string>
+using namespace std;
+int main() {
+    std::string program_name;
+
+    std::cout << "Enter the program name: ";
+    
+    // Something right here is making the program exit immediately!
+    std::cin >> program_name; 
+
+    return 0;
+}
