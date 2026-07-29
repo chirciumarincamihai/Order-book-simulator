@@ -91,8 +91,30 @@ Order generateOrder(std::string ticker, bool isBuy, unsigned long price, unsigne
     newOrder.quantity = quantity;
     return newOrder;
 }
+void cancelOrder(unsigned int orderID){
+    auto it = orderLocations.find(orderID);
+    if (it != orderLocations.end()) {
+        unsigned long price = it->second.first;
+        bool isBuy = it->second.second;
 
-
+        if (isBuy) {
+            for (auto& order : buyOrders[price]) {
+                if (order.ID == orderID) {
+                    order.isCanceled = true;
+                    break;
+                }
+            }
+        } else {
+            for (auto& order : sellOrders[price]) {
+                if (order.ID == orderID) {
+                    order.isCanceled = true;
+                    break;
+                }
+            }
+        }
+        orderLocations.erase(it);
+    }
+}
 
 int main() {
     // Example usage
