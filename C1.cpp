@@ -9,7 +9,10 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
+namespace py = pybind11;
 const unsigned long PRICE_SCALE = 1000000;
 unsigned int idGenerator = 1;
 
@@ -157,6 +160,7 @@ private:
             trade.sellOrderID = bestSeller.getID();
             trade.buyerID = newOrder.getAccountID();
             trade.sellerID = bestSeller.getAccountID();
+
             trade.price = bestSeller.getPrice();
             trade.quantity = tradedQuantity;
             trade.time = getCurrentTimeString();
@@ -257,22 +261,35 @@ public:
     }
 };
 
-int main() {
-    TradeLogger myLogger("trades.csv");
-    OrderBook aaplBook("AAPL", myLogger);
 
-    Order order1(59017509, "AAPL", true,  5000000, 2);
-    Order order2(9017509,  "AAPL", false, 5000000, 5);
-
-    std::cout << "Placing order 1..." << std::endl;
-    aaplBook.placeOrder(order1);
+PYBIND11_MODULE(orderbook_engine, m) {
+    m.doc() = "Order Book Engine Modeule";
     
-    std::cout << "Placing order 2..." << std::endl;
-    aaplBook.placeOrder(order2); 
+    py::class_<Order>(m, "Order")
+        .def(py::init<unsigned int, const std::string&, bool, unsigned long, unsigned int>())
+        .def("getAccountID", &Order::getAccountID)
+        .def("getID", &Order::getID)
+        .def("getTicker", &Order::getTicker)
+        .def("getIsBuy", &Order::getIsBuy)
+        .def("getPrice", &Order::getPrice)
+        .def("getQuantity", &Order::getQuantity)
+        .def("getIsCanceled", &Order::getIsCanceled);   
 
-    std::cout << "\nFetching ledger for Account 59017509..." << std::endl;
-    auto history = myLogger.getTradesForAccount(59017509);
-    std::cout << "Found " << history.size() << " trades for this account!" << std::endl;
+    py::class_<Trade>(m, "Trade")
+        .def_readwrite("buyOrderID", &Trade::buyOrderID)
+        .def_readwrite("buyerID", &Trade::buyerID)
+        .def_readwrite("sellOrderID", &Trade::sellOrderID)
+        .def_readwrite("sellerID", &Trade::sellerID)
+        .def_readwrite("price", &Trade::price)
+        .def_readwrite("quantity", &Trade::quantity)
+        .def_readwrite("time", &Trade::time);
 
-    return 0;
+    py::class_<TradeLogger>(m, "TradeLogger")
+        .def(py::init<const std::string&>())
+        .def("getTradesForAccount", &TradeLogger::getTradesForAccount);
+
+    py::class_<OrderBook>(m, "OrderBook")
+        .def(py::init<const std::string&, TradeLogger&>())
+        .def("placeOrder", &OrderBook::placeOrder)
+        .def("cancelOrder", &OrderBook::cancelOrder);
 }
