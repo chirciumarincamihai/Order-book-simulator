@@ -3,7 +3,8 @@ import pybind11
 
 ext_modules = [
     Extension(
-        "orderbook_engine",      
+        "orderbook_engine",       
+        ["C1.cpp"],               
         include_dirs=[pybind11.get_include()],
         language='c++'
     ),
