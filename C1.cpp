@@ -11,9 +11,10 @@
 #include <sstream>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <cstdint>
 
 namespace py = pybind11;
-const unsigned long PRICE_SCALE = 1000000;
+const uint64_t PRICE_SCALE = 100000000;
 unsigned int idGenerator = 1;
 
 class Order
@@ -23,13 +24,13 @@ private:
     unsigned int ID;
     std::string ticker;
     bool isBuy;
-    unsigned long price;
+    uint64_t price;
     unsigned int quantity;
     bool isCanceled = false;
 
 public:
     Order(unsigned int accID, const std::string &tick, // constructor
-          bool buy, unsigned long prc, unsigned int qty)
+          bool buy, uint64_t prc, unsigned int qty)
         : accountID(accID), ID(idGenerator++), ticker(tick),
           isBuy(buy), price(prc), quantity(qty), isCanceled(false)
     {
@@ -39,7 +40,7 @@ public:
     unsigned int getID() const { return ID; }
     const std::string &getTicker() { return ticker; }
     bool getIsBuy() const { return isBuy; }
-    unsigned long getPrice() const { return price; }
+    uint64_t getPrice() const { return price; }
     unsigned int getQuantity() const { return quantity; }
     bool getIsCanceled() const { return isCanceled; }
     void fillQuantity(unsigned int tradedQty)
@@ -62,7 +63,7 @@ class Trade
 public:
     unsigned int buyOrderID, buyerID;
     unsigned int sellOrderID, sellerID;
-    unsigned long price;
+    uint64_t price;
     unsigned int quantity;
     std::string time;
 };
@@ -126,9 +127,9 @@ class OrderBook
 private:
     std::string ticker;
     TradeLogger& logger;
-    std::map<unsigned long, std::deque<Order>, std::greater<unsigned long>> buyOrders;
-    std::map<unsigned long, std::deque<Order>> sellOrders;
-    std::unordered_map<unsigned int, std::pair<unsigned long, bool>> orderLocations;
+    std::map<uint64_t, std::deque<Order>, std::greater<uint64_t>> buyOrders;
+    std::map<uint64_t, std::deque<Order>> sellOrders;
+    std::unordered_map<unsigned int, std::pair<uint64_t, bool>> orderLocations;
 
     void matchBuyOrder(Order &newOrder)
     {
@@ -231,7 +232,7 @@ public:
         auto it = orderLocations.find(orderID);
         if (it != orderLocations.end())
         {
-            unsigned long price = it->second.first;
+            uint64_t price = it->second.first;
             bool isBuy = it->second.second;
 
             if (isBuy)
@@ -266,7 +267,7 @@ PYBIND11_MODULE(orderbook_engine, m) {
     m.doc() = "Order Book Engine Modeule";
     
     py::class_<Order>(m, "Order")
-        .def(py::init<unsigned int, const std::string&, bool, unsigned long, unsigned int>())
+        .def(py::init<unsigned int, const std::string&, bool, uint64_t, unsigned int>())
         .def("getAccountID", &Order::getAccountID)
         .def("getID", &Order::getID)
         .def("getTicker", &Order::getTicker)
