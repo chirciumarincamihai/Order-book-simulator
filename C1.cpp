@@ -141,6 +141,10 @@ private:
             if (bestSeller.getIsCanceled())
             {
                 sellOrders.begin()->second.pop_front();
+                if (sellOrders.begin()->second.empty())
+                {
+                    sellOrders.erase(sellOrders.begin());
+                }
                 continue;
             }
 
@@ -184,6 +188,10 @@ private:
             if (bestBuyer.getIsCanceled())
             {
                 buyOrders.begin()->second.pop_front();
+                if (buyOrders.begin()->second.empty())
+                {
+                    buyOrders.erase(buyOrders.begin());
+                }
                 continue;
             }
 
@@ -199,6 +207,7 @@ private:
             {
                 buyOrders.erase(buyOrders.begin());
             }
+            
             Trade trade;
             trade.sellOrderID = newOrder.getID();
             trade.buyOrderID = bestBuyer.getID();
@@ -261,7 +270,6 @@ public:
         }
     }
 };
-
 
 PYBIND11_MODULE(orderbook_engine, m) {
     m.doc() = "Order Book Engine Modeule";
