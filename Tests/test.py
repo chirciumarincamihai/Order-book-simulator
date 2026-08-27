@@ -1,7 +1,13 @@
+import sys
+import os
+current_dir = os.path.dirname(__file__)
+engine_path = os.path.join(current_dir, "..", "Engine")
+sys.path.append(engine_path)
 import orderbook_engine
 import numpy as np
 
-logger = orderbook_engine.TradeLogger("python_trades.csv")
+trades_path = os.path.join(current_dir, "python_trades.csv")
+logger = orderbook_engine.TradeLogger(trades_path)
 aapl_book = orderbook_engine.OrderBook("AAPL", logger)
 
 

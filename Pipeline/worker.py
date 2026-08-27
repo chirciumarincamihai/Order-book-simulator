@@ -1,7 +1,8 @@
+
 import redis
 import json
 import sqlite3
-conn = sqlite3.connect("market_data.db")
+conn = sqlite3.connect("Data/market_data.db")
 cursor = conn.cursor()
 r = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
@@ -13,4 +14,5 @@ while True:
     "INSERT INTO Trades_Binance (price, quantity, ticker, time) VALUES (?, ?, ?, ?)",
     (ticks['price'], ticks['quantity'], ticks['ticker'], ticks['time'])
 )
+    print(ticks)
     conn.commit()
