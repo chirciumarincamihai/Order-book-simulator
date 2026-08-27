@@ -1,11 +1,18 @@
+import sys
+import os
+current_dir = os.path.dirname(__file__)
+engine_path = os.path.join(current_dir, "..", "Engine")
+sys.path.append(engine_path)
 import orderbook_engine
 import pytest
 import pathlib as pl
-pl.Path("python_trades.csv").unlink(missing_ok=True)
+
+trades_path = os.path.join(current_dir, "python_trades.csv")
+pl.Path(trades_path).unlink(missing_ok=True)
 
 @pytest.fixture
 def logger():
-    return orderbook_engine.TradeLogger("python_trades.csv")
+    return orderbook_engine.TradeLogger(trades_path)
 
 @pytest.fixture
 def book(logger):
