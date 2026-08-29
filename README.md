@@ -1,7 +1,7 @@
 # High-Performance Limit Order Book (LOB) Engine
  
 ## Overview
-A high-performance C++ limit order book (LOB) matching engine, bridged to Python via `pybind11`, extended into a distributed, live-data pipeline in the style of a real post-trade system — connecting live market data, routing it through a message queue, processing it across parallel workers, and persisting it for downstream analysis.
+A high-performance C++ limit order book (LOB) matching engine, bridged to Python via `pybind11`, extended into a distributed, live-data pipeline in the style of a real post-trade system, connecting live market data, routing it through a message queue, processing it across parallel workers, and persisting it for downstream analysis.
  
 Built as a portfolio project targeting entry-level quant-developer / backend roles, structured around a real job posting's requirements (async ingest, message queue, parallel workers, time-series store, reconciliation, load testing).
  
