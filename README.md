@@ -1,86 +1,39 @@
-# Order Book Matching Engine
+# High-Performance Limit Order Book (LOB) Engine
  
-A price-time priority order matching engine written in C++, modeling the core mechanics of an exchange's matching system. Built as a learning and portfolio project targeting quantitative finance / trading-adjacent software roles.
+## Overview
+A high-performance C++ limit order book (LOB) matching engine, bridged to Python via `pybind11`, extended into a distributed, live-data pipeline in the style of a real post-trade system — connecting live market data, routing it through a message queue, processing it across parallel workers, and persisting it for downstream analysis.
  
-## What It Does
+Built as a portfolio project targeting entry-level quant-developer / backend roles, structured around a real job posting's requirements (async ingest, message queue, parallel workers, time-series store, reconciliation, load testing).
  
-- Accepts buy and sell orders for a given ticker
-- Matches incoming orders against the best available opposing price, filling partially or fully based on available quantity
-- Maintains **price-time priority**: at each price level, the earliest-arrived order is filled first
-- Supports **order cancellation** without disrupting the fairness ordering of other resting orders
-- Logs every executed trade to a persistent CSV ledger, queryable per account
-## Core Concepts
- 
-### Fixed-Point Pricing
-Prices are stored as scaled integers (e.g. cents, or a configurable `PRICE_SCALE`) rather than `float`/`double`. Floating-point types cannot represent most decimal values exactly, and small rounding errors compound across many trades — a well-known, serious problem in real financial systems. Using integers avoids this entirely, at the cost of needing to divide by the scale factor when displaying human-readable prices.
- 
-### Price-Time Priority
-- **Buy orders** are stored in a `std::map<price, std::deque<Order>, std::greater<>>`, sorted highest price first (the best price a buyer offers).
-- **Sell orders** are stored in a `std::map<price, std::deque<Order>>`, sorted lowest price first by default (the best price a seller asks).
-- Within each price level, a `std::deque<Order>` preserves arrival order, ensuring first-come-first-served matching among orders at the same price.
-### Matching Logic
-When a new order arrives, the engine walks the opposing book from its best price outward, matching quantity until either the incoming order is fully filled, no more compatible prices remain, or the book is exhausted. Any unfilled remainder is inserted into the order's own side of the book as a resting order.
- 
-### Cancellation (Lazy Deletion)
-`std::queue`/`std::deque` do not support efficient removal from the middle without disturbing element order. Rather than physically removing a cancelled order (which would reverse the arrival order of orders behind it), cancelled orders are flagged via an `isCanceled` state and silently skipped — then popped — the next time the matching engine reaches them.
- 
-### Trade Logging
-Every executed trade is appended to a CSV file via a `TradeLogger` class, recording both parties' account IDs, order IDs, price, quantity, and timestamp. The logger also supports querying full trade history for a specific account.
- 
-## Design
- 
-```cpp
-class Order {
-    // private: accountID, ID, ticker, isBuy, price, quantity, isCanceled
-    // public: getters, fillQuantity(), cancel()
-};
- 
-class Trade {
-    // buyOrderID, sellOrderID, buyerID, sellerID, price, quantity, time
-};
- 
-class TradeLogger {
-    // logTrade(const Trade&)
-    // getTradesForAccount(accountID) -> std::vector<Trade>
-};
- 
-class OrderBook {
-    // buyOrders, sellOrders (std::map<price, std::deque<Order>>)
-    // orderLocations (std::unordered_map<orderID, {price, isBuy}>) — O(1) cancellation lookup
-    // placeOrder(Order&), cancelOrder(orderID)
-};
+## Project Structure
+```
+Engine/     — C++ matching engine, pybind11 bindings, build files
+Pipeline/   — live listener, worker(s), batch CSV ingestion
+Data/       — generated output (SQLite store, trade logs) — not source code
+Tests/      — pytest suite
 ```
  
-Core logic is encapsulated using proper OOP principles — order state is private, modified only through controlled methods (`fillQuantity()`, `cancel()`), rather than exposed as public fields.
+## Core Architecture
  
-## Data Structures Used
- 
-| Structure | Purpose | Complexity |
-|---|---|---|
-| `std::map<price, deque<Order>>` | Sorted order book by price level | O(log n) insert/lookup |
-| `std::deque<Order>` | FIFO ordering within a price level | O(1) push/pop at ends, supports iteration for cancellation |
-| `std::unordered_map<ID, location>` | Direct lookup of an order's price/side for cancellation | O(1) average lookup |
-| `std::vector<Trade>` / CSV file | Trade history | O(1) append |
- 
-## Building and Running
- 
-```bash
-g++ -std=c++17 -O2 order_book.cpp -o order_book
-./order_book
-```
- 
-## Example Usage
- 
-```cpp
-TradeLogger myLogger("trades.csv");
-OrderBook aaplBook("AAPL", myLogger);
- 
-Order order1(59017509, "AAPL", true,  5000000, 2); // buy 2 @ $5.00
-Order order2(9017509,  "AAPL", false, 5000000, 5); // sell 5 @ $5.00
- 
-aaplBook.placeOrder(order1);
-aaplBook.placeOrder(order2);
- 
-auto history = myLogger.getTradesForAccount(59017509);
-```
- 
+### C++ Execution Engine (`Engine/`)
+- **Price-Time Priority:** `std::map` (Red-Black Tree) for automatic price-level sorting, `std::deque` for fast iteration of resting time-priority orders.
+- **Precision Math:** Prices stored as scaled fixed-point integers using `uint64_t` — a fixed-width type, chosen after discovering `unsigned long` is 32-bit on MSVC/Windows but 64-bit on Linux/GCC, a platform-dependent bug that would silently corrupt or overflow prices depending on where the code was compiled.
+- **Efficient Memory Management:** Lazy deletion for canceled orders. A real crash bug was found and fixed here during testing: canceling the front order of a price level and popping it left an empty-but-not-erased map entry, causing a later `.front()` call on an empty deque — undefined behavior that produced a hard access-violation crash. Fixed by mirroring the same empty-check/erase pattern the fill branch already used, in both `matchBuyOrder` and `matchSellOrder`.
+- **Trade Ledger:** Every executed trade (buyer, seller, price, quantity, ticker, timestamp) is appended to a CSV log via `TradeLogger`.
+### Python Integration (`Pipeline/`)
+- **`OrderIngestor` (OO batch ingestion):** Reads simulated order flow from CSV via `pandas`, safely converts decimal prices to the engine's scaled integer format using `round()` (not truncation — a real precision bug was traced here, caused by binary floating-point representation of decimals like `0.2`), and routes each order to the correct per-ticker `OrderBook`, created lazily and reused via `dict.setdefault`.
+- **Live Market Data Listener (`asyncio`):** Connects to Binance's public trade WebSocket feed, continuously streaming live trades. Each tick is parsed into a `Tick` dataclass (a typed domain object, not a raw dict) — price and quantity, which Binance sends as strings specifically to avoid lossy float parsing, are converted via Python's `Decimal` type to preserve exact precision before scaling.
+- **Message Queue (Redis, via WSL2):** The listener pushes each normalized `Tick` onto a Redis list (`LPUSH`), decoupling ingestion from processing. Worker processes consume with `BRPOP` — a blocking pop that waits efficiently rather than busy-looping. Verified with two workers running simultaneously against the same queue: the stream splits cleanly between them with zero duplication.
+- **Time-Series Store (SQLite):** Each worker writes consumed ticks into a `Trades_Binance` table (`price`, `quantity` as text to preserve precision, `ticker`, `time`), giving a persistent, queryable record of live market activity.
+## Tech Stack
+- **Core Engine:** C++17
+- **Interoperability:** pybind11
+- **Build System:** MSVC / setuptools
+- **Data Analytics:** Python 3, pandas
+- **Live Data:** `asyncio`, `websockets`, `json`, `decimal`
+- **Message Queue:** Redis (via WSL2)
+- **Storage:** SQLite (`sqlite3`)
+- **Testing:** pytest
+## Design Decisions Worth Noting
+- **Live ticks are never fed into the matching engine.** A Binance trade tick represents a completed, real-world event with no account ID and no clean buy/sell side — feeding it into `Order()`/`placeOrder()` would mean injecting an already-finished trade as if it were a fresh order. Live data and simulated CSV orders are deliberately kept on separate paths; the live pipeline exists to *observe* the market, not to generate matching activity.
+- **`Trade` objects are not shared references.** C++ containers holding `Order`/`Trade` by value make copies on insert — a Python-held object never reflects the engine's internal mutations. State is checked through the trade log (`TradeLogger.getTradesForAccount`), not by re-inspecting the original object, matching how real exchanges report fills via separate notifications rather than mutable shared state.
