@@ -66,6 +66,7 @@ public:
     uint64_t price;
     unsigned int quantity;
     std::string time;
+    std::string ticker;
 };
 
 std::vector<Trade> tradeLog;
@@ -87,7 +88,8 @@ public:
              << trade.buyOrderID << ","
              << trade.price << "," 
              << trade.quantity << ","
-             << trade.time; 
+             << trade.ticker<< ","
+             << trade.time ;              
     }
 
     std::vector<Trade> getTradesForAccount(unsigned int targetAccountID) {
@@ -111,8 +113,8 @@ public:
             std::getline(ss, token, ','); trade.buyOrderID = std::stoul(token);
             std::getline(ss, token, ','); trade.price = std::stoul(token);
             std::getline(ss, token, ','); trade.quantity = std::stoul(token);
-            std::getline(ss, token);      trade.time = token; 
-
+            std::getline(ss, token, ','); trade.ticker = token;
+            std::getline(ss, token);      trade.time = token;
 
             if (trade.buyerID == targetAccountID || trade.sellerID == targetAccountID) {
                 accountHistory.push_back(trade);
@@ -169,6 +171,7 @@ private:
             trade.price = bestSeller.getPrice();
             trade.quantity = tradedQuantity;
             trade.time = getCurrentTimeString();
+            trade.ticker = ticker;
             logger.logTrade(trade);
         }
         if (newOrder.getQuantity() > 0)
@@ -216,6 +219,7 @@ private:
             trade.price = bestBuyer.getPrice();
             trade.quantity = tradedQuantity;
             trade.time = getCurrentTimeString();
+            trade.ticker = ticker;
             logger.logTrade(trade);
         }
         if (newOrder.getQuantity() > 0)
@@ -291,7 +295,8 @@ PYBIND11_MODULE(orderbook_engine, m) {
         .def_readwrite("sellerID", &Trade::sellerID)
         .def_readwrite("price", &Trade::price)
         .def_readwrite("quantity", &Trade::quantity)
-        .def_readwrite("time", &Trade::time);
+        .def_readwrite("time", &Trade::time)
+        .def_readwrite("ticker", &Trade::ticker);
 
     py::class_<TradeLogger>(m, "TradeLogger")
         .def(py::init<const std::string&>())
